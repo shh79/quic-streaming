@@ -1,6 +1,6 @@
 from mininet.topo import Topo
 from mininet.net import Mininet
-from mininet.node import Node
+from mininet.node import Node, Controller, OVSController
 from mininet.link import TCLink
 from mininet.cli import CLI
 from mininet.log import setLogLevel
@@ -8,8 +8,7 @@ from mininet.term import makeTerm
 
 class StreamingTopo(Topo):
 
-	def __init__(self):
-		Topo.__init__(self)
+	def build(self):
 		
 		# Servers
 		s1 = self.addHost('s1', ip='10.0.0.1/24')  # QUIC
@@ -30,7 +29,7 @@ class StreamingTopo(Topo):
 
 def run():
 	topology = StreamingTopo()
-	net = Mininet(topo=topology, link=TCLink)
+	net = Mininet(topo = topology, link = TCLink, controller = OVSController)
 	net.start()
 
 	print(" Network started. Assigning routes...")
