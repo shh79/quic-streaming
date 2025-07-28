@@ -1,0 +1,1 @@
+I need a simulation of "QUIC" protocol for video streaming in "Mininet OS", then compare this protocol with "HLS" and "MPEG-DASH". I want the code of simulation in python and my evaluation criteria are "delay", "data rate" and "performance in high-loss and unstable network conditions"

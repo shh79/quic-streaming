@@ -1,0 +1,53 @@
+from mininet.topo import Topo
+from mininet.net import Mininet
+from mininet.node import Node
+from mininet.link import TCLink
+from mininet.cli import CLI
+from mininet.log import setLogLevel
+from mininet.term import makeTerm
+
+class StreamingTopo(Topo):
+
+	def __init__(self):
+		Topo.__init__(self)
+		
+		# Servers
+		s1 = self.addHost('s1', ip='10.0.0.1/24')  # QUIC
+		s2 = self.addHost('s2', ip='10.0.0.2/24')  # MPEG-DASH
+		s3 = self.addHost('s3', ip='10.0.0.3/24')  # HLS
+
+		# Client
+		c1 = self.addHost('c1', ip='10.0.0.100/24')
+
+		# Router
+		router = self.addSwitch('r1')
+
+		# Links
+		self.addLink(s1, router, bw=10, delay='10ms')
+		self.addLink(s2, router, bw=10, delay='10ms')
+		self.addLink(s3, router, bw=10, delay='10ms')
+		self.addLink(c1, router, bw=10, delay='10ms')
+
+def run():
+	topology = StreamingTopo()
+	net = Mininet(topo=topology, link=TCLink)
+	net.start()
+
+	print(" Network started. Assigning routes...")
+
+	client = net.get('c1')
+	client.cmd('ip route add 10.0.0.0/24 dev c1-eth0')
+
+	for node_name in ['s1', 's2', 's3', 'c1', 'r1']:
+		node = net.get(node_name)
+		makeTerm(node, title=node_name)
+
+	CLI(net)
+	net.stop()
+
+if __name__ == '__main__':
+	setLogLevel('info')
+	run()
+
+
+

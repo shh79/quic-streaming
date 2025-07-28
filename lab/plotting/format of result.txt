@@ -1,0 +1,4 @@
+Protocol,Delay (s),Data Rate (KB/s)
+HLS,3.25,310
+MPEG-DASH,2.80,345
+QUIC,1.45,500
