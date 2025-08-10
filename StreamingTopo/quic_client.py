@@ -1,86 +1,96 @@
-# Save this as /tmp/quic_client.py
-from aioquic.asyncio import connect
-from aioquic.quic.configuration import QuicConfiguration
-from aioquic.quic.events import StreamDataReceived, QuicEvent
 import asyncio
 import time
-import statistics
+from aioquic.asyncio import connect
+from aioquic.quic.configuration import QuicConfiguration
+from aioquic.quic.events import StreamDataReceived
+from aioquic.asyncio.protocol import QuicConnectionProtocol
 
-class VideoClientProtocol:
-    def __init__(self):
-        self.stream_id = None
-        self.latencies = []
-        self.start_time = None
-        self.received_bytes = 0
-        self.connection_established_time = None
-        self.protocol = None
+class VideoStreamProtocol(QuicConnectionProtocol):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.video_data = b''
+        self.start_time = time.time()
+        self.first_chunk_time = 0
+        self.connection_time = 0
+        self.current_stream_id = None
+        self.video_name = None
+        self.transfer_complete = asyncio.Event()
 
-    def quic_event_received(self, event: QuicEvent) -> None:
-        if isinstance(event, StreamDataReceived):
-            if self.start_time:
-                latency = time.time() - self.start_time
-                self.latencies.append(latency)
-                self.received_bytes += len(event.data)
-                print(f"Received {len(event.data)} bytes in {latency:.4f}s")
-            
-            # Request next chunk to measure throughput
-            self.start_time = time.time()
-            if self.protocol and self.stream_id is not None:
-                self.protocol.send_stream_data(self.stream_id, b"request")
+    def get_next_stream_id(self) -> int:
+        """Get the next available client-initiated stream ID"""
+        return self._quic.get_next_available_stream_id()
 
-async def measure_connection_quality(host: str, port: int) -> None:
-    configuration = QuicConfiguration(is_client=True)
-    configuration.verify_mode = 0  # Disable certificate verification for testing
-    
-    try:
-        # Create the protocol instance
-        client_protocol = VideoClientProtocol()
+    async def request_video(self, video_name: bytes) -> None:
+        """Initiate video request on a new stream"""
+        self.video_name = video_name
+        self.current_stream_id = self.get_next_stream_id()
         
-        # Connect to the server - returns a single object in newer versions
-        connection = connect(
-            host=host,
-            port=port,
-            configuration=configuration,
-            create_protocol=lambda: client_protocol
+        self._quic.send_stream_data(
+            stream_id=self.current_stream_id,
+            data=f"GET {video_name.decode()}".encode(),
+            end_stream=False
         )
         
-        # Get the protocol from the connection
-        client_protocol.protocol = connection.protocol
-        client_protocol.stream_id = connection.protocol.get_next_available_stream_id()
-        client_protocol.connection_established_time = time.time()
-        
-        # Initial request
-        connection.protocol.send_stream_data(client_protocol.stream_id, b"request")
-        client_protocol.start_time = time.time()
-        
-        # Measure for 10 seconds
-        await asyncio.sleep(10)
-        
-        # Calculate statistics
-        if client_protocol.latencies:
-            avg_latency = statistics.mean(client_protocol.latencies) * 1000  # in ms
-            min_latency = min(client_protocol.latencies) * 1000
-            max_latency = max(client_protocol.latencies) * 1000
-            jitter = statistics.stdev(client_protocol.latencies) * 1000 if len(client_protocol.latencies) > 1 else 0
+        await self.transfer_complete.wait()
+
+    def quic_event_received(self, event):
+        """Handle incoming QUIC events"""
+        if isinstance(event, StreamDataReceived) and event.stream_id == self.current_stream_id:
+            if not self.video_data:  # First chunk
+                self.first_chunk_time = time.time() - self.start_time
+                self.connection_time = self.first_chunk_time  # Time until first data
+                print(f"Connection established, time: {self.connection_time:.3f}s")
+                print(f"First packet received on stream {self.current_stream_id}")
             
-            duration = time.time() - client_protocol.connection_established_time
-            throughput = (client_protocol.received_bytes * 8) / duration / 1e6  # in Mbps
+            self.video_data += event.data
             
-            print("\nConnection Quality Report:")
-            print(f"  - Average Latency: {avg_latency:.2f} ms")
-            print(f"  - Minimum Latency: {min_latency:.2f} ms")
-            print(f"  - Maximum Latency: {max_latency:.2f} ms")
-            print(f"  - Jitter: {jitter:.2f} ms")
-            print(f"  - Throughput: {throughput:.2f} Mbps")
-            print(f"  - Total Data Received: {client_protocol.received_bytes / 1024:.2f} KB")
-        else:
-            print("No data received to measure connection quality")
+            if event.end_stream:
+                self._handle_transfer_complete()
+
+    def _handle_transfer_complete(self):
+        """Finalize transfer and print statistics"""
+        total_time = time.time() - self.start_time
+        transfer_time = total_time - self.first_chunk_time
         
-    except Exception as e:
-        print(f"Connection failed: {e}")
-    finally:
-        if 'connection' in locals():
-            connection.close()
+        print(f"\nTransfer complete for {self.video_name.decode()}")
+        print(f"Total time: {total_time:.3f} seconds")
+        print(f"Video size: {len(self.video_data)/1024:.2f} KB")
+        print(f"Transfer rate: {(len(self.video_data)/1024)/transfer_time:.2f} KB/s")
+        
+        self._save_video()
+        self.transfer_complete.set()
+
+    def _save_video(self):
+        """Save video data to file"""
+        filename = f"received_{self.video_name.decode()}"
+        with open(filename, 'wb') as f:
+            f.write(self.video_data)
+        print(f"Video saved as {filename}")
+
+class VideoStreamClient:
+    def __init__(self):
+        self.configuration = QuicConfiguration(
+            is_client=True,
+            alpn_protocols=["video-stream"],
+            max_datagram_frame_size=65536,
+            verify_mode=False
+        )
+
+    async def run(self, host: str, port: int, video_name: bytes):
+        print(f"Connecting to {host}:{port}...")
+        
+        async with connect(
+            host=host,
+            port=port,
+            configuration=self.configuration,
+            create_protocol=VideoStreamProtocol
+        ) as protocol:
+            print("Connected, requesting video...")
+            await protocol.request_video(video_name)
+
+async def main():
+    client = VideoStreamClient()
+    await client.run("10.0.0.1", 4433, b"sample.mp4")
 
 if __name__ == "__main__":
-    asyncio.run(measure_connection_quality("10.0.0.1", 4433))
+    asyncio.run(main())
