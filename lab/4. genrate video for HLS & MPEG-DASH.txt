@@ -1,8 +1,0 @@
-# Create HLS
-ffmpeg -i sample.mp4 -profile:v baseline -level 3.0 -s 640x360 -start_number 0 \
--hls_time 10 -hls_list_size 0 -f hls hls/output.m3u8
-
-# Create MPEG-DASH
-ffmpeg -re -i sample.mp4 -map 0 -map 0 -map 0 -b:v:0 800k -b:v:1 300k -b:v:2 100k \
--use_timeline 1 -use_template 1 -adaptation_sets "id=0,streams=v id=1,streams=a" \
--f dash dash/manifest.mpd
