@@ -12,8 +12,7 @@ class StreamingTopo(Topo):
 		
 		# Servers
 		s1 = self.addHost('s1', ip='10.0.0.1/24')  # QUIC Server
-		s2 = self.addHost('s2', ip='10.0.0.2/24')  # MPEG-DASH Server
-		s3 = self.addHost('s3', ip='10.0.0.3/24')  # HLS Server
+		s2 = self.addHost('s2', ip='10.0.0.2/24')  # DASH Server
 
 		# Client
 		c1 = self.addHost('c1', ip='10.0.0.100/24')
@@ -24,7 +23,6 @@ class StreamingTopo(Topo):
 		# Links
 		self.addLink(s1, router, bw=10, delay='10ms')
 		self.addLink(s2, router, bw=10, delay='10ms')
-		self.addLink(s3, router, bw=10, delay='10ms')
 		self.addLink(c1, router, bw=10, delay='10ms')
 
 def run():
@@ -37,7 +35,7 @@ def run():
 	client = net.get('c1')
 	client.cmd('ip route add 10.0.0.0/24 dev c1-eth0')
 
-	for node_name in ['s1', 's2', 's3', 'c1', 'r1']:
+	for node_name in ['s1', 's2', 'c1', 'r1']:
 		node = net.get(node_name)
 		makeTerm(node, title=node_name)
 
