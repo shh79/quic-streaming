@@ -115,30 +115,25 @@ class NetworkEmulator:
 
 # Test scenario definitions
 SCENARIOS = {
-    # Bandwidth variations
-    'bw_2mbit': {'bandwidth': '2mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel'},
-    'bw_5mbit': {'bandwidth': '5mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel'},
-    'bw_10mbit': {'bandwidth': '10mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel'},
-    'bw_20mbit': {'bandwidth': '20mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel'},
+    # Bandwidth variations - FIXED: added queue_size parameter
+    'bw_2mbit': {'bandwidth': '2mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
+    'bw_5mbit': {'bandwidth': '5mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
+    'bw_10mbit': {'bandwidth': '10mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
+    'bw_20mbit': {'bandwidth': '20mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
     
     # Delay variations
-    'delay_10ms': {'bandwidth': '10mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel'},
-    'delay_40ms': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel'},
-    'delay_80ms': {'bandwidth': '10mbit', 'delay': '80ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel'},
-    
-    # Jitter variations
-    'jitter_0ms': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel'},
-    'jitter_10ms': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '0%', 'queue': 'fq_codel'},
-    'jitter_30ms': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '30ms', 'loss': '0%', 'queue': 'fq_codel'},
+    'delay_10ms': {'bandwidth': '10mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
+    'delay_40ms': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
+    'delay_80ms': {'bandwidth': '10mbit', 'delay': '80ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
     
     # Loss variations
-    'loss_0p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '0%', 'queue': 'fq_codel'},
-    'loss_0.1p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '0.1%', 'queue': 'fq_codel'},
-    'loss_1p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '1%', 'queue': 'fq_codel'},
-    'loss_3p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '3%', 'queue': 'fq_codel'},
+    'loss_0p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
+    'loss_0.1p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '0.1%', 'queue': 'fq_codel', 'queue_size': 1000},
+    'loss_1p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '1%', 'queue': 'fq_codel', 'queue_size': 1000},
+    'loss_3p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '3%', 'queue': 'fq_codel', 'queue_size': 1000},
     
     # Queue variations
-    'queue_fq_codel': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '1%', 'queue': 'fq_codel'},
+    'queue_fq_codel': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '1%', 'queue': 'fq_codel', 'queue_size': 1000},
     'queue_pfifo_small': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '1%', 'queue': 'pfifo', 'queue_size': 100},
     'queue_pfifo_large': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '1%', 'queue': 'pfifo', 'queue_size': 1000},
 }

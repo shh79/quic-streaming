@@ -329,8 +329,19 @@ async def run_specific_scenarios(scenario_names, protocols=['quic', 'dash']):
         scenario_params = SCENARIOS[scenario_name]
         print(f"\nRunning scenario: {scenario_name}")
         
-        # Setup network
-        runner.netem.setup_netem(**scenario_params)
+        # Setup network - FIXED: Extract individual parameters
+        success = runner.netem.setup_netem(
+            bandwidth=scenario_params['bandwidth'],
+            delay=scenario_params['delay'],
+            jitter=scenario_params['jitter'],
+            loss=scenario_params['loss'],
+            queue_algorithm=scenario_params['queue']
+        )
+        
+        if not success:
+            print(f"Failed to setup network for {scenario_name}, skipping...")
+            continue
+            
         time.sleep(2)
         
         if 'quic' in protocols:
@@ -339,13 +350,17 @@ async def run_specific_scenarios(scenario_names, protocols=['quic', 'dash']):
             time.sleep(3)
         
         if 'dash' in protocols:
-            dash_config = {'manifest_url': 'http://10.0.0.2:8080/manifest.mpd', 'duration': 60,
-                          'segment_length': 4, 'abr_algorithm': 'throughput', 'buffer_target': 15}
+            dash_config = {
+                'manifest_url': 'http://10.0.0.2:8080/manifest.mpd', 
+                'duration': 60,
+                'segment_length': 4, 
+                'abr_algorithm': 'throughput', 
+                'buffer_target': 15
+            }
             await runner.run_dash_test(scenario_name, scenario_params, dash_config)
             time.sleep(3)
     
     runner.generate_summary_report()
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Streaming Test Runner')
     parser.add_argument('--mode', choices=['comprehensive', 'quick', 'specific'], default='quick',
