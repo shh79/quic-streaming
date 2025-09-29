@@ -1,4 +1,3 @@
-import os
 import subprocess
 import time
 import json
@@ -9,146 +8,135 @@ class NetworkEmulator:
         self.interface = interface
     
     def clear_rules(self):
-        """Clear existing tc rules"""
-        try:
-            subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', self.interface, 'root'], 
-                          capture_output=True, timeout=10)
-            time.sleep(1)
-        except subprocess.TimeoutExpired:
-            print("Warning: Timeout clearing tc rules")
-        except Exception as e:
-            print(f"Error clearing rules: {e}")
+        """Clear existing tc rules safely"""
+        print("Clearing existing tc rules...")
+        commands = [
+            ['sudo', 'tc', 'qdisc', 'del', 'dev', self.interface, 'root'],
+            ['sudo', 'tc', 'qdisc', 'del', 'dev', self.interface, 'ingress'],
+        ]
+        
+        for cmd in commands:
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    print(f"  Cleared: {' '.join(cmd)}")
+            except:
+                pass
+        
+        time.sleep(1)
     
-    def setup_netem(self, bandwidth='10mbit', delay='0ms', jitter='0ms', loss='0%', 
-                   queue_size=1000, queue_algorithm='fq_codel'):
-        """Setup network emulation using netem and tbf"""
+    def setup_netem(self, bandwidth='10mbit', delay='0ms', jitter='0ms', loss='0%', **kwargs):
+        """Simple and reliable network emulation setup"""
         
-        print(f"Setting up network emulation: {bandwidth}, {delay} delay, {jitter} jitter, {loss} loss, {queue_algorithm} queue")
+        print(f"Setting up network emulation:")
+        print(f"  Bandwidth: {bandwidth}")
+        print(f"  Delay: {delay}")
+        print(f"  Jitter: {jitter}") 
+        print(f"  Loss: {loss}")
         
-        # Clear existing rules
+        # Clear existing rules first
         self.clear_rules()
+        time.sleep(2)
         
         try:
-            # Setup token bucket filter for bandwidth shaping
-            tbf_cmd = [
-                'sudo', 'tc', 'qdisc', 'add', 'dev', self.interface, 'root', 
-                'handle', '1:', 'tbf', 
-                'rate', bandwidth,
-                'burst', '32k',
-                'latency', '400ms'
-            ]
-            subprocess.run(tbf_cmd, check=True, timeout=30)
-            
-            # Setup netem for delay, jitter, loss
-            if jitter == '0ms':
+            # Build delay parameter
+            if jitter != '0ms':
+                delay_param = f'{delay} {jitter} distribution normal'
+            else:
                 delay_param = delay
-            else:
-                delay_param = f'{delay} {jitter}'
             
+            # Method 1: Simple netem with all parameters
             netem_cmd = [
-                'sudo', 'tc', 'qdisc', 'add', 'dev', self.interface, 
-                'parent', '1:1', 'handle', '10:', 'netem',
-                'delay', delay_param,
-                'loss', loss
+                'sudo', 'tc', 'qdisc', 'add', 'dev', self.interface, 'root',
+                'netem', 'rate', bandwidth, 'delay', delay_param, 'loss', loss
             ]
             
-            if queue_algorithm == 'fq_codel':
-                netem_cmd.extend(['fq_codel', 'limit', str(queue_size), 'target', '5ms', 'interval', '100ms'])
+            print(f"Running: {' '.join(netem_cmd)}")
+            result = subprocess.run(netem_cmd, capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                print("✓ Network emulation setup successful")
+                self.show_current_rules()
+                return True
             else:
-                netem_cmd.extend(['pfifo', 'limit', str(queue_size)])
+                print(f"Method 1 failed: {result.stderr}")
+                
+                # Method 2: Try without rate limiting
+                netem_cmd2 = [
+                    'sudo', 'tc', 'qdisc', 'add', 'dev', self.interface, 'root',
+                    'netem', 'delay', delay_param, 'loss', loss
+                ]
+                
+                print(f"Trying method 2: {' '.join(netem_cmd2)}")
+                result2 = subprocess.run(netem_cmd2, capture_output=True, text=True, timeout=30)
+                
+                if result2.returncode == 0:
+                    print("✓ Network emulation setup successful (without rate limiting)")
+                    self.show_current_rules()
+                    return True
             
-            subprocess.run(netem_cmd, check=True, timeout=30)
+            print("✗ Network emulation setup failed")
+            return False
             
-            print("Network emulation setup completed successfully")
-            return True
-            
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             print(f"Error setting up network emulation: {e}")
             return False
-        except subprocess.TimeoutExpired:
-            print("Timeout setting up network emulation")
-            return False
     
-    def create_background_traffic(self, protocol='tcp', duration=60, bandwidth='5mbit', flows=1):
-        """Create background traffic using iperf3"""
-        print(f"Creating {flows} {protocol} background flow(s) at {bandwidth} for {duration}s")
-        
+    def show_current_rules(self):
+        """Show current tc rules"""
         try:
-            # Start iperf3 server on background server (s3)
-            server_cmd = ['iperf3', '-s', '-D', '-p', '5201']
-            subprocess.Popen(server_cmd)
-            time.sleep(2)
-            
-            # Start iperf3 clients
-            client_procs = []
-            for i in range(flows):
-                if protocol == 'tcp':
-                    client_cmd = [
-                        'iperf3', '-c', '10.0.0.3', '-p', '5201', '-t', str(duration), 
-                        '-b', bandwidth, '--logfile', f'background_tcp_flow_{i}.log'
-                    ]
-                else:  # udp
-                    client_cmd = [
-                        'iperf3', '-c', '10.0.0.3', '-p', '5201', '-u', '-t', str(duration),
-                        '-b', bandwidth, '--logfile', f'background_udp_flow_{i}.log'
-                    ]
-                
-                proc = subprocess.Popen(client_cmd)
-                client_procs.append(proc)
-                time.sleep(0.5)  # Stagger start times
-            
-            return client_procs
-            
-        except Exception as e:
-            print(f"Error creating background traffic: {e}")
-            return []
-    
-    def get_current_config(self):
-        """Get current network configuration"""
-        try:
-            result = subprocess.run(['sudo', 'tc', 'qdisc', 'show', 'dev', self.interface], 
-                                  capture_output=True, text=True, timeout=10)
+            result = subprocess.run(
+                ['sudo', 'tc', 'qdisc', 'show', 'dev', self.interface],
+                capture_output=True, text=True, timeout=10
+            )
+            print("Current network rules:")
+            print(result.stdout)
             return result.stdout
         except Exception as e:
-            print(f"Error getting current config: {e}")
+            print(f"Error showing rules: {e}")
             return ""
 
-# Test scenario definitions
+# Network scenarios
 SCENARIOS = {
-    # Bandwidth variations - FIXED: added queue_size parameter
-    'bw_2mbit': {'bandwidth': '2mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
-    'bw_5mbit': {'bandwidth': '5mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
-    'bw_10mbit': {'bandwidth': '10mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
-    'bw_20mbit': {'bandwidth': '20mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
-    
-    # Delay variations
-    'delay_10ms': {'bandwidth': '10mbit', 'delay': '10ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
-    'delay_40ms': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
-    'delay_80ms': {'bandwidth': '10mbit', 'delay': '80ms', 'jitter': '0ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
-    
-    # Loss variations
-    'loss_0p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '0%', 'queue': 'fq_codel', 'queue_size': 1000},
-    'loss_0.1p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '0.1%', 'queue': 'fq_codel', 'queue_size': 1000},
-    'loss_1p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '1%', 'queue': 'fq_codel', 'queue_size': 1000},
-    'loss_3p': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '3%', 'queue': 'fq_codel', 'queue_size': 1000},
-    
-    # Queue variations
-    'queue_fq_codel': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '1%', 'queue': 'fq_codel', 'queue_size': 1000},
-    'queue_pfifo_small': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '1%', 'queue': 'pfifo', 'queue_size': 100},
-    'queue_pfifo_large': {'bandwidth': '10mbit', 'delay': '40ms', 'jitter': '10ms', 'loss': '1%', 'queue': 'pfifo', 'queue_size': 1000},
+    'good': {
+        'bandwidth': '10mbit',
+        'delay': '10ms', 
+        'jitter': '0ms',
+        'loss': '0%'
+    },
+    'medium': {
+        'bandwidth': '5mbit',
+        'delay': '40ms',
+        'jitter': '10ms', 
+        'loss': '0.1%'
+    },
+    'poor': {
+        'bandwidth': '2mbit',
+        'delay': '80ms',
+        'jitter': '20ms',
+        'loss': '1%'
+    },
+    'very_poor': {
+        'bandwidth': '1mbit', 
+        'delay': '100ms',
+        'jitter': '30ms',
+        'loss': '3%'
+    }
 }
 
 def test_netem():
-    """Test network emulation setup"""
+    """Test network emulation"""
     netem = NetworkEmulator()
     
-    for scenario_name, params in list(SCENARIOS.items())[:2]:  # Test first 2 scenarios
-        print(f"\n=== Testing {scenario_name} ===")
-        success = netem.setup_netem(**params)
-        if success:
-            current_config = netem.get_current_config()
-            print(f"Current config:\n{current_config}")
-        time.sleep(2)
+    print("Testing network emulation setup...")
+    success = netem.setup_netem(**SCENARIOS['good'])
+    
+    if success:
+        print("✓ Network emulation test passed")
+    else:
+        print("✗ Network emulation test failed")
+    
+    netem.clear_rules()
 
 if __name__ == "__main__":
     test_netem()

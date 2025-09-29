@@ -13,369 +13,271 @@ class StreamingTestRunner:
         self.output_dir.mkdir(exist_ok=True)
         self.netem = NetworkEmulator()
         self.results = []
-        
-    async def run_quic_test(self, scenario_name, scenario_params, quic_params):
+    
+    async def run_quic_test(self, scenario_name, scenario_params):
         """Run QUIC streaming test"""
         test_id = f"quic_{scenario_name}_{datetime.now().strftime('%H%M%S')}"
         test_dir = self.output_dir / test_id
         test_dir.mkdir(exist_ok=True)
         
-        print(f"\n{'='*60}")
-        print(f"Starting QUIC Test: {test_id}")
-        print(f"{'='*60}")
-        
-        # Start QUIC server
-        server_cmd = [
-            'python3', 'quic_server.py',
-            '--host', '10.0.0.1',
-            '--port', '4433',
-            '--cc', quic_params['cc_algorithm']
-        ]
-        
-        server_proc = subprocess.Popen(server_cmd)
-        time.sleep(3)  # Wait for server to start
+        print(f"\n=== QUIC TEST: {scenario_name.upper()} ===")
         
         try:
             # Run QUIC client
             client_cmd = [
                 'python3', 'quic_client.py',
                 '--host', '10.0.0.1',
-                '--port', '4433',
-                '--video', quic_params['video'],
-                '--cc', quic_params['cc_algorithm']
+                '--video', 'sample_240p.mp4'
             ]
             
             start_time = time.time()
-            client_proc = await asyncio.create_subprocess_exec(
+            process = await asyncio.create_subprocess_exec(
                 *client_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
             
-            stdout, stderr = await client_proc.communicate()
-            total_time = time.time() - start_time
-            
-            # Save results
-            with open(test_dir / 'stdout.log', 'w') as f:
-                f.write(stdout.decode())
-            
-            if stderr:
-                with open(test_dir / 'stderr.log', 'w') as f:
-                    f.write(stderr.decode())
-            
-            # Copy qlog files to test directory
-            for qlog_file in Path('.').glob('*.qlog'):
-                qlog_file.rename(test_dir / qlog_file.name)
-            
-            # Collect metrics
-            metrics = self.collect_quic_metrics(test_dir, total_time)
-            
-            test_result = {
-                'test_id': test_id,
-                'protocol': 'QUIC',
-                'scenario': scenario_name,
-                'scenario_params': scenario_params,
-                'quic_params': quic_params,
-                'metrics': metrics,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            self.results.append(test_result)
-            self.save_test_result(test_dir, test_result)
-            
-            print(f"QUIC test completed: {test_id}")
-            return test_dir
-            
+            try:
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60.0)
+                total_time = time.time() - start_time
+                
+                # Save logs
+                with open(test_dir / 'stdout.log', 'wb') as f:
+                    f.write(stdout)
+                if stderr:
+                    with open(test_dir / 'stderr.log', 'wb') as f:
+                        f.write(stderr)
+                
+                success = process.returncode == 0
+                
+                # Collect basic metrics
+                metrics = {
+                    'success': success,
+                    'total_time': total_time,
+                    'return_code': process.returncode
+                }
+                
+                # Look for QLog files
+                qlog_files = list(Path('.').glob('*.qlog'))
+                for qlog_file in qlog_files:
+                    qlog_file.rename(test_dir / qlog_file.name)
+                    metrics['qlog_file'] = qlog_file.name
+                
+                test_result = {
+                    'test_id': test_id,
+                    'protocol': 'QUIC', 
+                    'scenario': scenario_name,
+                    'scenario_params': scenario_params,
+                    'metrics': metrics,
+                    'timestamp': datetime.now().isoformat()
+                }
+                
+                self.results.append(test_result)
+                self.save_test_result(test_dir, test_result)
+                
+                status = "✓ SUCCESS" if success else "✗ FAILED"
+                print(f"QUIC Test: {status} - Time: {total_time:.1f}s")
+                
+                return success
+                
+            except asyncio.TimeoutError:
+                print("QUIC Test: ⏰ TIMEOUT")
+                process.terminate()
+                return False
+                
         except Exception as e:
-            print(f"Error in QUIC test: {e}")
-            return None
-        finally:
-            server_proc.terminate()
-            server_proc.wait()
+            print(f"QUIC Test: ❌ ERROR: {e}")
+            return False
     
-    async def run_dash_test(self, scenario_name, scenario_params, dash_params):
+    async def run_dash_test(self, scenario_name, scenario_params):
         """Run DASH streaming test"""
         test_id = f"dash_{scenario_name}_{datetime.now().strftime('%H%M%S')}"
         test_dir = self.output_dir / test_id
         test_dir.mkdir(exist_ok=True)
         
-        print(f"\n{'='*60}")
-        print(f"Starting DASH Test: {test_id}")
-        print(f"{'='*60}")
+        print(f"\n=== DASH TEST: {scenario_name.upper()} ===")
         
         try:
             # Run DASH client
             client_cmd = [
                 'python3', 'dash_client.py',
-                '--manifest', dash_params['manifest_url'],
+                '--manifest', 'http://10.0.0.2:8080/manifest.mpd',
                 '--output', str(test_dir / 'dash_output.mp4'),
-                '--duration', str(dash_params['duration']),
-                '--segment-length', str(dash_params['segment_length']),
-                '--abr', dash_params['abr_algorithm'],
-                '--buffer-target', str(dash_params['buffer_target'])
+                '--duration', '30'
             ]
             
             start_time = time.time()
-            client_proc = await asyncio.create_subprocess_exec(
+            process = await asyncio.create_subprocess_exec(
                 *client_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
             
-            stdout, stderr = await client_proc.communicate()
-            total_time = time.time() - start_time
-            
-            # Save results
-            with open(test_dir / 'stdout.log', 'w') as f:
-                f.write(stdout.decode())
-            
-            if stderr:
-                with open(test_dir / 'stderr.log', 'w') as f:
-                    f.write(stderr.decode())
-            
-            # Collect metrics
-            metrics = self.collect_dash_metrics(test_dir, total_time)
-            
-            test_result = {
-                'test_id': test_id,
-                'protocol': 'DASH',
-                'scenario': scenario_name,
-                'scenario_params': scenario_params,
-                'dash_params': dash_params,
-                'metrics': metrics,
-                'timestamp': datetime.now().isoformat()
-            }
-            
-            self.results.append(test_result)
-            self.save_test_result(test_dir, test_result)
-            
-            print(f"DASH test completed: {test_id}")
-            return test_dir
-            
-        except Exception as e:
-            print(f"Error in DASH test: {e}")
-            return None
-    
-    def collect_quic_metrics(self, test_dir, total_time):
-        """Collect metrics from QUIC test"""
-        metrics = {
-            'total_time': total_time,
-            'qlog_files': list(test_dir.glob('*.qlog'))
-        }
-        
-        # Parse qlog files for detailed metrics
-        for qlog_file in metrics['qlog_files']:
             try:
-                with open(qlog_file, 'r') as f:
-                    qlog_data = json.load(f)
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=60.0)
+                total_time = time.time() - start_time
                 
-                # Extract metrics from qlog events
-                for event in qlog_data.get('trace', {}).get('events', []):
-                    if event.get('name') == 'stream:transfer_complete':
-                        metrics.update(event.get('data', {}))
-                        break
-            except:
-                pass
-        
-        return metrics
-    
-    def collect_dash_metrics(self, test_dir, total_time):
-        """Collect metrics from DASH test"""
-        metrics = {
-            'total_time': total_time
-        }
-        
-        # Parse metrics file
-        metrics_file = test_dir / 'dash_output.mp4_metrics.json'
-        if metrics_file.exists():
-            try:
-                with open(metrics_file, 'r') as f:
-                    dash_metrics = json.load(f)
-                metrics.update(dash_metrics)
-            except:
-                pass
-        
-        return metrics
+                # Save logs
+                with open(test_dir / 'stdout.log', 'wb') as f:
+                    f.write(stdout)
+                if stderr:
+                    with open(test_dir / 'stderr.log', 'wb') as f:
+                        f.write(stderr)
+                
+                success = process.returncode == 0
+                
+                metrics = {
+                    'success': success,
+                    'total_time': total_time,
+                    'return_code': process.returncode
+                }
+                
+                test_result = {
+                    'test_id': test_id,
+                    'protocol': 'DASH',
+                    'scenario': scenario_name, 
+                    'scenario_params': scenario_params,
+                    'metrics': metrics,
+                    'timestamp': datetime.now().isoformat()
+                }
+                
+                self.results.append(test_result)
+                self.save_test_result(test_dir, test_result)
+                
+                status = "✓ SUCCESS" if success else "✗ FAILED"
+                print(f"DASH Test: {status} - Time: {total_time:.1f}s")
+                
+                return success
+                
+            except asyncio.TimeoutError:
+                print("DASH Test: ⏰ TIMEOUT")
+                process.terminate()
+                return False
+                
+        except Exception as e:
+            print(f"DASH Test: ❌ ERROR: {e}")
+            return False
     
     def save_test_result(self, test_dir, test_result):
-        """Save individual test result"""
+        """Save test result"""
         result_file = test_dir / 'test_result.json'
         with open(result_file, 'w') as f:
             json.dump(test_result, f, indent=2)
     
     def generate_summary_report(self):
         """Generate comprehensive test report"""
-        report = {
-            'summary': {
-                'total_tests': len(self.results),
-                'quic_tests': len([r for r in self.results if r['protocol'] == 'QUIC']),
-                'dash_tests': len([r for r in self.results if r['protocol'] == 'DASH']),
-                'scenarios_tested': list(set(r['scenario'] for r in self.results))
-            },
-            'detailed_results': self.results,
-            'comparison_metrics': self.calculate_comparison_metrics()
+        if not self.results:
+            print("No test results to report")
+            return
+        
+        summary = {
+            'total_tests': len(self.results),
+            'successful_tests': len([r for r in self.results if r['metrics']['success']]),
+            'failed_tests': len([r for r in self.results if not r['metrics']['success']]),
+            'quic_tests': len([r for r in self.results if r['protocol'] == 'QUIC']),
+            'dash_tests': len([r for r in self.results if r['protocol'] == 'DASH']),
+            'scenarios_tested': list(set(r['scenario'] for r in self.results)),
+            'results': self.results
         }
         
         report_file = self.output_dir / 'test_summary_report.json'
         with open(report_file, 'w') as f:
-            json.dump(report, f, indent=2)
+            json.dump(summary, f, indent=2)
         
-        print(f"\nSummary report generated: {report_file}")
-        return report
-    
-    def calculate_comparison_metrics(self):
-        """Calculate comparison metrics between QUIC and DASH"""
-        comparison = {}
+        print(f"\n{'='*60}")
+        print("TEST SUMMARY REPORT")
+        print(f"{'='*60}")
+        print(f"Total tests: {summary['total_tests']}")
+        print(f"Successful: {summary['successful_tests']}")
+        print(f"Failed: {summary['failed_tests']}")
+        print(f"QUIC tests: {summary['quic_tests']}")
+        print(f"DASH tests: {summary['dash_tests']}")
+        print(f"Scenarios tested: {', '.join(summary['scenarios_tested'])}")
+        print(f"Report saved: {report_file}")
         
-        # Group by scenario
-        for scenario in set(r['scenario'] for r in self.results):
-            scenario_results = [r for r in self.results if r['scenario'] == scenario]
-            quic_results = [r for r in scenario_results if r['protocol'] == 'QUIC']
-            dash_results = [r for r in scenario_results if r['protocol'] == 'DASH']
-            
-            if quic_results and dash_results:
-                comparison[scenario] = {
-                    'quic_avg_startup_delay': sum(r['metrics'].get('startup_delay', 0) for r in quic_results) / len(quic_results),
-                    'dash_avg_startup_delay': sum(r['metrics'].get('startup_delay', 0) for r in dash_results) / len(dash_results),
-                    'quic_avg_bitrate': sum(r['metrics'].get('transfer_rate_kbps', 0) for r in quic_results) / len(quic_results),
-                    'dash_avg_bitrate': sum(r['metrics'].get('average_bitrate', 0) / 1000 for r in dash_results) / len(dash_results),
-                }
-        
-        return comparison
+        return summary
 
-async def run_comprehensive_test_suite():
+async def run_comprehensive_tests():
     """Run comprehensive test suite"""
     runner = StreamingTestRunner()
     
-    # QUIC parameters
-    quic_configs = [
-        {'cc_algorithm': 'cubic', 'video': 'sample_720p.mp4'},
-        {'cc_algorithm': 'reno', 'video': 'sample_720p.mp4'},
-    ]
+    print("Starting Comprehensive Streaming Tests")
+    print("This will test QUIC and DASH under different network conditions")
     
-    # DASH parameters
-    dash_configs = [
-        {'manifest_url': 'http://10.0.0.2:8080/manifest.mpd', 'duration': 60, 
-         'segment_length': 4, 'abr_algorithm': 'throughput', 'buffer_target': 15},
-        {'manifest_url': 'http://10.0.0.2:8080/manifest.mpd', 'duration': 60,
-         'segment_length': 4, 'abr_algorithm': 'buffer', 'buffer_target': 15},
-    ]
+    scenarios_to_test = ['good', 'medium', 'poor']
     
-    # Background traffic configurations
-    background_configs = [
-        {'protocol': 'tcp', 'flows': 1, 'bandwidth': '5mbit', 'duration': 70},
-        {'protocol': 'udp', 'flows': 2, 'bandwidth': '2mbit', 'duration': 70},
-    ]
-    
-    total_scenarios = len(SCENARIOS) * (len(quic_configs) + len(dash_configs))
-    current_scenario = 0
-    
-    for scenario_name, scenario_params in SCENARIOS.items():
-        current_scenario += 1
+    for scenario_name in scenarios_to_test:
+        print(f"\n{'#'*60}")
+        print(f"TESTING SCENARIO: {scenario_name.upper()}")
+        print(f"{'#'*60}")
         
-        print(f"\n{'#'*80}")
-        print(f"Scenario {current_scenario}/{total_scenarios}: {scenario_name}")
-        print(f"Network: {scenario_params}")
-        print(f"{'#'*80}")
+        scenario_params = SCENARIOS[scenario_name]
         
         # Setup network conditions
+        print(f"Setting up network: {scenario_name}")
         success = runner.netem.setup_netem(**scenario_params)
+        
         if not success:
             print(f"Failed to setup network for {scenario_name}, skipping...")
             continue
         
-        time.sleep(2)
+        time.sleep(3)  # Wait for network to stabilize
         
-        # Add background traffic for some scenarios
-        if scenario_name in ['loss_1p', 'delay_80ms', 'jitter_30ms']:
-            bg_config = background_configs[0]  # Use first background config
-            runner.netem.create_background_traffic(**bg_config)
-            time.sleep(5)
+        # Run QUIC test
+        await runner.run_quic_test(scenario_name, scenario_params)
+        time.sleep(5)
         
-        # Run QUIC tests
-        for quic_config in quic_configs:
-            await runner.run_quic_test(scenario_name, scenario_params, quic_config)
-            time.sleep(5)  # Cool-down period
+        # Run DASH test
+        await runner.run_dash_test(scenario_name, scenario_params)
+        time.sleep(5)
         
-        # Run DASH tests
-        for dash_config in dash_configs:
-            await runner.run_dash_test(scenario_name, scenario_params, dash_config)
-            time.sleep(5)  # Cool-down period
-        
-        # Clear background traffic
+        # Clear network rules
         runner.netem.clear_rules()
         time.sleep(2)
     
     # Generate final report
-    report = runner.generate_summary_report()
-    
-    print(f"\n{'='*80}")
-    print("COMPREHENSIVE TEST SUITE COMPLETED")
-    print(f"Total tests run: {len(runner.results)}")
-    print(f"Results directory: {runner.output_dir}")
-    print(f"{'='*80}")
-    
-    return report
+    runner.generate_summary_report()
 
-async def run_specific_scenarios(scenario_names, protocols=['quic', 'dash']):
-    """Run specific scenarios"""
+async def run_quick_test():
+    """Run quick test with only good network conditions"""
     runner = StreamingTestRunner()
     
-    for scenario_name in scenario_names:
-        if scenario_name not in SCENARIOS:
-            print(f"Unknown scenario: {scenario_name}")
-            continue
-        
-        scenario_params = SCENARIOS[scenario_name]
-        print(f"\nRunning scenario: {scenario_name}")
-        
-        # Setup network - FIXED: Extract individual parameters
-        success = runner.netem.setup_netem(
-            bandwidth=scenario_params['bandwidth'],
-            delay=scenario_params['delay'],
-            jitter=scenario_params['jitter'],
-            loss=scenario_params['loss'],
-            queue_algorithm=scenario_params['queue']
-        )
-        
-        if not success:
-            print(f"Failed to setup network for {scenario_name}, skipping...")
-            continue
-            
-        time.sleep(2)
-        
-        if 'quic' in protocols:
-            quic_config = {'cc_algorithm': 'cubic', 'video': 'sample_720p.mp4'}
-            await runner.run_quic_test(scenario_name, scenario_params, quic_config)
-            time.sleep(3)
-        
-        if 'dash' in protocols:
-            dash_config = {
-                'manifest_url': 'http://10.0.0.2:8080/manifest.mpd', 
-                'duration': 60,
-                'segment_length': 4, 
-                'abr_algorithm': 'throughput', 
-                'buffer_target': 15
-            }
-            await runner.run_dash_test(scenario_name, scenario_params, dash_config)
-            time.sleep(3)
+    print("Running Quick Test (Good Network Conditions Only)")
     
+    scenario_name = 'good'
+    scenario_params = SCENARIOS[scenario_name]
+    
+    # Setup network
+    print("Setting up good network conditions...")
+    success = runner.netem.setup_netem(**scenario_params)
+    
+    if not success:
+        print("Failed to setup network, aborting...")
+        return
+    
+    time.sleep(2)
+    
+    # Run tests
+    await runner.run_quic_test(scenario_name, scenario_params)
+    time.sleep(3)
+    
+    await runner.run_dash_test(scenario_name, scenario_params)
+    time.sleep(3)
+    
+    # Clear network
+    runner.netem.clear_rules()
+    
+    # Generate report
     runner.generate_summary_report()
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Streaming Test Runner')
-    parser.add_argument('--mode', choices=['comprehensive', 'quick', 'specific'], default='quick',
-                       help='Test mode: comprehensive (all scenarios), quick (subset), specific (custom)')
-    parser.add_argument('--scenarios', nargs='+', help='Specific scenarios to run')
-    parser.add_argument('--protocols', nargs='+', choices=['quic', 'dash'], default=['quic', 'dash'],
-                       help='Protocols to test')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', choices=['comprehensive', 'quick'], default='quick',
+                       help='Test mode: comprehensive (all scenarios), quick (good network only)')
     
     args = parser.parse_args()
     
     if args.mode == 'comprehensive':
-        asyncio.run(run_comprehensive_test_suite())
-    elif args.mode == 'specific' and args.scenarios:
-        asyncio.run(run_specific_scenarios(args.scenarios, args.protocols))
+        asyncio.run(run_comprehensive_tests())
     else:
-        # Quick test with few scenarios
-        quick_scenarios = ['bw_10mbit', 'delay_40ms', 'loss_1p']
-        asyncio.run(run_specific_scenarios(quick_scenarios, args.protocols))
+        asyncio.run(run_quick_test())

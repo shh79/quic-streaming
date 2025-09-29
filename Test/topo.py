@@ -20,11 +20,11 @@ class StreamingTopo(Topo):
         # Router
         router = self.addSwitch('r1')
 
-        # Links with bottleneck on client side
-        self.addLink(s1, router, bw=100)  # High bandwidth for servers
+        # Links
+        self.addLink(s1, router, bw=100)
         self.addLink(s2, router, bw=100)
         self.addLink(s3, router, bw=100)
-        self.addLink(c1, router, bw=100)  # Will be shaped by netem
+        self.addLink(c1, router, bw=100)
         self.addLink(c2, router, bw=100)
 
 def run():
@@ -34,15 +34,24 @@ def run():
 
     print("Network started. Assigning routes...")
 
-    # Setup routes
+    # Setup routes for all hosts
     for node_name in ['s1', 's2', 's3', 'c1', 'c2']:
         node = net.get(node_name)
         node.cmd(f'ip route add 10.0.0.0/24 dev {node_name}-eth0')
 
     print("Starting terminals...")
-    for node_name in ['s1', 's2', 's3', 'c1', 'c2']:
+    for node_name in ['s1', 's2', 'c1']:
         node = net.get(node_name)
         makeTerm(node, title=node_name)
+
+    print("\nNetwork setup complete!")
+    print("Servers:")
+    print("  s1 (QUIC): 10.0.0.1:4433")
+    print("  s2 (DASH): 10.0.0.2:8080")
+    print("  s3 (Background): 10.0.0.3")
+    print("Clients:")
+    print("  c1 (Main): 10.0.0.100")
+    print("  c2 (Background): 10.0.0.200")
 
     CLI(net)
     net.stop()

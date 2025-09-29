@@ -1,0 +1,17 @@
+{
+  "test_id": "dash_good_160330",
+  "protocol": "DASH",
+  "scenario": "good",
+  "scenario_params": {
+    "bandwidth": "10mbit",
+    "delay": "10ms",
+    "jitter": "0ms",
+    "loss": "0%"
+  },
+  "metrics": {
+    "success": true,
+    "total_time": 5.5735063552856445,
+    "return_code": 0
+  },
+  "timestamp": "2025-09-29T16:03:35.587621"
+}

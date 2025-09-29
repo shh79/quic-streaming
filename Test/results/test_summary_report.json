@@ -1,10 +1,46 @@
 {
-  "summary": {
-    "total_tests": 0,
-    "quic_tests": 0,
-    "dash_tests": 0,
-    "scenarios_tested": []
-  },
-  "detailed_results": [],
-  "comparison_metrics": {}
+  "total_tests": 2,
+  "successful_tests": 2,
+  "failed_tests": 0,
+  "quic_tests": 1,
+  "dash_tests": 1,
+  "scenarios_tested": [
+    "good"
+  ],
+  "results": [
+    {
+      "test_id": "quic_good_160326",
+      "protocol": "QUIC",
+      "scenario": "good",
+      "scenario_params": {
+        "bandwidth": "10mbit",
+        "delay": "10ms",
+        "jitter": "0ms",
+        "loss": "0%"
+      },
+      "metrics": {
+        "success": true,
+        "total_time": 0.2707211971282959,
+        "return_code": 0
+      },
+      "timestamp": "2025-09-29T16:03:27.011482"
+    },
+    {
+      "test_id": "dash_good_160330",
+      "protocol": "DASH",
+      "scenario": "good",
+      "scenario_params": {
+        "bandwidth": "10mbit",
+        "delay": "10ms",
+        "jitter": "0ms",
+        "loss": "0%"
+      },
+      "metrics": {
+        "success": true,
+        "total_time": 5.5735063552856445,
+        "return_code": 0
+      },
+      "timestamp": "2025-09-29T16:03:35.587621"
+    }
+  ]
 }

@@ -13,30 +13,28 @@ def setup_environment():
         'videos',
         'dash_content',
         'qlog',
-        'results',
-        'certificates'
+        'results'
     ]
     
     for directory in directories:
         Path(directory).mkdir(exist_ok=True)
-        print(f"Created directory: {directory}")
+        print(f"✓ Created directory: {directory}")
     
-    # Generate sample video files (placeholder)
+    # Generate sample video files
     print("\nCreating sample video files...")
     sample_videos = {
-        'sample_240p.mp4': 10 * 1024 * 1024,  # 10MB
-        'sample_480p.mp4': 20 * 1024 * 1024,  # 20MB
-        'sample_720p.mp4': 50 * 1024 * 1024,  # 50MB
-        'sample_1080p.mp4': 100 * 1024 * 1024, # 100MB
+        'sample_240p.mp4': 5 * 1024 * 1024,   # 5MB
+        'sample_480p.mp4': 10 * 1024 * 1024,  # 10MB
+        'sample_720p.mp4': 20 * 1024 * 1024,  # 20MB
+        'sample_1080p.mp4': 30 * 1024 * 1024, # 30MB
     }
     
     for video_name, size in sample_videos.items():
         video_path = Path('videos') / video_name
         if not video_path.exists():
-            # Create dummy video file
             with open(video_path, 'wb') as f:
                 f.write(b'0' * size)
-            print(f"Created sample video: {video_name} ({size//1024//1024}MB)")
+            print(f"✓ Created sample video: {video_name} ({size//1024//1024}MB)")
     
     # Generate SSL certificates for QUIC
     print("\nGenerating SSL certificates for QUIC...")
@@ -44,12 +42,16 @@ def setup_environment():
     key_path = Path('key.pem')
     
     if not cert_path.exists() or not key_path.exists():
-        subprocess.run([
-            'openssl', 'req', '-x509', '-newkey', 'rsa:4096',
+        result = subprocess.run([
+            'openssl', 'req', '-x509', '-newkey', 'rsa:2048',
             '-keyout', 'key.pem', '-out', 'cert.pem',
             '-days', '365', '-nodes', '-subj', '/CN=localhost'
         ], capture_output=True)
-        print("Generated SSL certificates")
+        
+        if result.returncode == 0:
+            print("✓ Generated SSL certificates")
+        else:
+            print("✗ Failed to generate SSL certificates")
     
     # Check required tools
     print("\nChecking required tools...")
@@ -62,31 +64,12 @@ def setup_environment():
         except:
             print(f"✗ {tool} is not available")
     
-    # Install Python dependencies
-    print("\nInstalling Python dependencies...")
-    dependencies = [
-        'aioquic',
-        'requests',
-        'matplotlib',
-        'seaborn',
-        'pandas',
-        'numpy'
-    ]
-    
-    for dep in dependencies:
-        try:
-            subprocess.run([sys.executable, '-m', 'pip', 'install', dep], check=True)
-            print(f"✓ Installed {dep}")
-        except subprocess.CalledProcessError:
-            print(f"✗ Failed to install {dep}")
-    
-    print("\nSetup completed!")
+    print("\n✓ Setup completed!")
     print("\nNext steps:")
-    print("1. Place your actual video files in the 'videos' directory")
-    print("2. Place DASH content in 'dash_content' directory")
-    print("3. Run Mininet topology: sudo python3 topo.py")
-    print("4. Run tests: python3 test_runner.py")
-    print("5. Analyze results: python3 analyze_results.py")
+    print("1. Start Mininet: sudo python3 topo.py")
+    print("2. In s1 terminal: python3 quic_server.py")
+    print("3. In s2 terminal: python3 dash_server.py") 
+    print("4. In c1 terminal: python3 test_runner.py")
 
 if __name__ == "__main__":
     setup_environment()
