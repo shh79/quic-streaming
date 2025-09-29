@@ -1,3 +1,0 @@
-Connecting to 10.0.0.1:4433...
-✗ Connection failed: VideoStreamClient.run.<locals>.<lambda>() got an unexpected keyword argument 'stream_handler'
-Make sure the QUIC server is running and accessible

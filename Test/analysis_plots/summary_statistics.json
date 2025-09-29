@@ -1,0 +1,25 @@
+{
+  "total_tests": 2,
+  "protocols": {
+    "DASH": 1,
+    "QUIC": 1
+  },
+  "scenarios": {
+    "good": 2
+  },
+  "success_rate": 100.0,
+  "metrics_by_protocol": {
+    "DASH": {
+      "avg_startup_delay": 1.1582110637412424,
+      "avg_total_time": 5.328056335449219,
+      "success_rate": 100.0,
+      "test_count": 1
+    },
+    "QUIC": {
+      "avg_startup_delay": 0.3408913818523283,
+      "avg_total_time": 0.3213531970977783,
+      "success_rate": 100.0,
+      "test_count": 1
+    }
+  }
+}
