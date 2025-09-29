@@ -1,0 +1,24 @@
+{
+  "test_id": "dash_good_174807",
+  "protocol": "DASH",
+  "scenario": "good",
+  "scenario_params": {
+    "bandwidth": "10mbit",
+    "delay": "10ms",
+    "jitter": "0ms",
+    "loss": "0%"
+  },
+  "dash_config": {
+    "manifest_url": "http://10.0.0.2:8080/manifest.mpd",
+    "duration": 30
+  },
+  "metrics": {
+    "success": true,
+    "total_time": 5.160109281539917,
+    "return_code": 0,
+    "has_stdout_log": true,
+    "estimated_startup_delay": 0.5160109281539917,
+    "estimated_throughput": 5000
+  },
+  "timestamp": "2025-09-29T17:48:12.652525"
+}

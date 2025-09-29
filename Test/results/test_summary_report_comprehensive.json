@@ -1,0 +1,10 @@
+{
+  "total_tests": 2,
+  "successful_tests": 2,
+  "failed_tests": 0,
+  "quic_tests": 1,
+  "dash_tests": 1,
+  "scenarios_tested": [
+    "good"
+  ]
+}

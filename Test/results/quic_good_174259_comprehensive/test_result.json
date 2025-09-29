@@ -1,0 +1,23 @@
+{
+  "test_id": "quic_good_174259",
+  "protocol": "QUIC",
+  "scenario": "good",
+  "scenario_params": {
+    "bandwidth": "10mbit",
+    "delay": "10ms",
+    "jitter": "0ms",
+    "loss": "0%"
+  },
+  "quic_config": {
+    "video": "sample_240p.mp4"
+  },
+  "metrics": {
+    "success": true,
+    "total_time": 0.24491643905639648,
+    "return_code": 0,
+    "has_stdout_log": true,
+    "estimated_startup_delay": 0.02449164390563965,
+    "estimated_throughput": 5000
+  },
+  "timestamp": "2025-09-29T17:42:59.805385"
+}

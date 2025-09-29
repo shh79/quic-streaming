@@ -10,14 +10,14 @@
   "success_rate": 100.0,
   "metrics_by_protocol": {
     "QUIC": {
-      "avg_startup_delay": 0.4548356699873003,
-      "avg_total_time": 0.27372169494628906,
+      "avg_startup_delay": 0.11933566336106614,
+      "avg_total_time": 0.24491643905639648,
       "success_rate": 100.0,
       "test_count": 1
     },
     "DASH": {
-      "avg_startup_delay": 1.0147377950086975,
-      "avg_total_time": 5.160109281539917,
+      "avg_startup_delay": 1.0876908321111116,
+      "avg_total_time": 5.1070756912231445,
       "success_rate": 100.0,
       "test_count": 1
     }
