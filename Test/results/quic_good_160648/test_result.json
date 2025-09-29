@@ -1,0 +1,17 @@
+{
+  "test_id": "quic_good_160648",
+  "protocol": "QUIC",
+  "scenario": "good",
+  "scenario_params": {
+    "bandwidth": "10mbit",
+    "delay": "10ms",
+    "jitter": "0ms",
+    "loss": "0%"
+  },
+  "metrics": {
+    "success": true,
+    "total_time": 0.26160740852355957,
+    "return_code": 0
+  },
+  "timestamp": "2025-09-29T16:06:48.865803"
+}

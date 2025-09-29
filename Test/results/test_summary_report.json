@@ -9,7 +9,7 @@
   ],
   "results": [
     {
-      "test_id": "quic_good_160326",
+      "test_id": "quic_good_160648",
       "protocol": "QUIC",
       "scenario": "good",
       "scenario_params": {
@@ -20,13 +20,13 @@
       },
       "metrics": {
         "success": true,
-        "total_time": 0.2707211971282959,
+        "total_time": 0.26160740852355957,
         "return_code": 0
       },
-      "timestamp": "2025-09-29T16:03:27.011482"
+      "timestamp": "2025-09-29T16:06:48.865803"
     },
     {
-      "test_id": "dash_good_160330",
+      "test_id": "dash_good_160653",
       "protocol": "DASH",
       "scenario": "good",
       "scenario_params": {
@@ -37,10 +37,10 @@
       },
       "metrics": {
         "success": true,
-        "total_time": 5.5735063552856445,
+        "total_time": 5.108323812484741,
         "return_code": 0
       },
-      "timestamp": "2025-09-29T16:03:35.587621"
+      "timestamp": "2025-09-29T16:06:58.976117"
     }
   ]
 }
