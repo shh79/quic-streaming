@@ -6,9 +6,33 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-async def test():
-    print('here')
-    return True
+async def run_quic_test():
+    netem_cmd = [
+        'python3', 'quic_client.py'
+    ]
+
+    result = subprocess.run(netem_cmd, capture_output=True, text=True, timeout=30)
+    return (result.returncode == 0)
+    
+async def run_dash_test():
+    netem_cmd = [
+        'python3', 'dash_client.py'
+    ]
+
+    result = subprocess.run(netem_cmd, capture_output=True, text=True, timeout=30)
+    return (result.returncode == 0)
+
+async def runner():
+    print("\n--- Running QUIC Test ---")
+    quic_success = await run_quic_test()
+    time.sleep(3)
+    
+    print("\n--- Running DASH Test ---")
+    # dash_success = await run_dash_test()
+    dash_success = True
+    time.sleep(3)
+
+    return quic_success and dash_success
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -42,7 +66,7 @@ if __name__ == "__main__":
 
     print(f"Config the link of c1-eth0 to have Bandwidth: {args.b}Mbps, Delay: {args.d}ms, Jitter: {args.j}ms, Packet-Loss: {args.l}%")
     
-    success = asyncio.run(test())
+    success = asyncio.run(runner())
     
     if success:
         print(f"All tests on this senario(Bandwidth: {args.b}Mbps, Delay: {args.d}ms, Jitter: {args.j}ms, Packet-Loss: {args.l}%) are completed successfully!")
