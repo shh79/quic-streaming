@@ -1,0 +1,49 @@
+import asyncio
+import subprocess
+import time
+import json
+import argparse
+from datetime import datetime
+from pathlib import Path
+
+async def test():
+    print('here')
+    return True
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-b', choices=['2', '5', '10', '20'], default='20', help='Bandwidth(Mbps): 2, 5, 10, 20; default: 20Mbps')
+    parser.add_argument('-d', choices=['10', '40', '80'], default='10', help='Delay(ms): 10, 40, 80; default: 10ms')
+    parser.add_argument('-j', choices=['0', '10', '30'], default='0', help='Jitter(ms): 0, 10, 30; default: 0ms')
+    parser.add_argument('-l', choices=['0', '0.1', '1', '3'], default='0', help='Packet-Loss(%): 0, 0.1, 1, 3; default: 0%')
+    
+    args = parser.parse_args()
+
+    netem_cmd = [
+        'sudo', 'tc', 'qdisc', 'del', 'dev', 'c1-eth0', 'root'
+    ]
+
+    result = subprocess.run(netem_cmd, capture_output=True, text=True, timeout=30)
+            
+    if result.returncode == 0:
+        print("The network emulation rules is cleared.")
+    
+    netem_cmd = [
+        'sudo', 'tc', 'qdisc', 'add', 'dev', 'c1-eth0', 'root', 'tbf', 'rate', f'{args.b}mbit'
+    ]
+
+    result = subprocess.run(netem_cmd, capture_output=True, text=True, timeout=30)
+
+    netem_cmd = [
+        'sudo', 'tc', 'qdisc', 'add', 'dev', 'c1-eth0', 'root', 'netem', 'delay', f'{args.d}ms', f'{args.j}ms', 'loss', f'{args.l}%'
+    ]
+
+    result = subprocess.run(netem_cmd, capture_output=True, text=True, timeout=30)
+
+    print(f"Config the link of c1-eth0 to have Bandwidth: {args.b}Mbps, Delay: {args.d}ms, Jitter: {args.j}ms, Packet-Loss: {args.l}%")
+    
+    success = asyncio.run(test())
+    
+    if success:
+        print(f"All tests on this senario(Bandwidth: {args.b}Mbps, Delay: {args.d}ms, Jitter: {args.j}ms, Packet-Loss: {args.l}%) are completed successfully!")
+    

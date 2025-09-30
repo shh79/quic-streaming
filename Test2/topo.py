@@ -24,11 +24,11 @@ class StreamingTopo(Topo):
 		router = self.addSwitch('r1')
 
 		# Links
-		self.addLink(s1, router, bw=10)
-		self.addLink(s2, router, bw=10)
-		self.addLink(s3, router, bw=10)
-		self.addLink(c1, router, bw=10)
-		self.addLink(c2, router, bw=10)
+		self.addLink(s1, router, bw=20)
+		self.addLink(s2, router, bw=20)
+		self.addLink(s3, router, bw=20)
+		self.addLink(c1, router, bw=20)
+		self.addLink(c2, router, bw=20)
 
 def run():
 	topology = StreamingTopo()
