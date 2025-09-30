@@ -70,13 +70,13 @@ class StreamQLogger:
         }
         with open(filename, "w") as f:
             json.dump(qlog_data, f, indent=2)
-        print(f"💾 Stream QLog saved to: {filename}")
+        print(f"Stream QLog saved to: {filename}")
 
 
 class VideoStreamProtocol(QuicConnectionProtocol):
     """QUIC Protocol with adaptive bitrate streaming"""
     
-    def __init__(self, *args, stream_qlogger=None, bitrates=None, segments_per_bitrate=5, **kwargs):
+    def __init__(self, *args, stream_qlogger=None, bitrates=None, segments_per_bitrate=4, **kwargs):
         super().__init__(*args, **kwargs)
         self.stream_qlogger = stream_qlogger
         self.packet_logger = self._quic._quic_logger
@@ -96,12 +96,12 @@ class VideoStreamProtocol(QuicConnectionProtocol):
 
     def get_next_stream_id(self) -> int:
         stream_id = self._quic.get_next_available_stream_id()
-        print(f"🆔 Using stream ID: {stream_id}")
+        print(f"Using stream ID: {stream_id}")
         return stream_id
 
     async def request_next_segment(self):
         if self.segment_index >= self.segments_per_bitrate:
-            print("🎉 All segments completed!")
+            print("All segments completed!")
             return False
 
         # Determine video filename based on current bitrate
@@ -112,7 +112,7 @@ class VideoStreamProtocol(QuicConnectionProtocol):
         else:  # 1080
             video_name = f"sample_high_seg{self.segment_index}.mp4"
         
-        print(f"📨 Requesting segment {self.segment_index} at {self.current_bitrate}p: {video_name}")
+        print(f"Requesting segment {self.segment_index} at {self.current_bitrate}p: {video_name}")
         
         self.current_stream_id = self.get_next_stream_id()
         self.video_data = b""
@@ -125,7 +125,7 @@ class VideoStreamProtocol(QuicConnectionProtocol):
 
         # Send GET request for segment
         request_data = f"GET {video_name}".encode()
-        print(f"📤 Sending request: {request_data} on stream {self.current_stream_id}")
+        print(f"Sending request: {request_data} on stream {self.current_stream_id}")
         
         # Send request and immediately end the stream for request
         self._quic.send_stream_data(
@@ -137,7 +137,7 @@ class VideoStreamProtocol(QuicConnectionProtocol):
         # Force transmission
         self.transmit()
 
-        print(f"⏳ Waiting for video data on stream {self.current_stream_id}...")
+        print(f"Waiting for video data on stream {self.current_stream_id}...")
         start_chunk_time = time.time()
         
         # Wait for transfer to complete with timeout
@@ -145,7 +145,7 @@ class VideoStreamProtocol(QuicConnectionProtocol):
             await asyncio.wait_for(self.transfer_complete.wait(), timeout=30.0)
             self.last_chunk_time = time.time() - start_chunk_time
         except asyncio.TimeoutError:
-            print(f"⏰ Timeout waiting for segment {self.segment_index}")
+            print(f"Timeout waiting for segment {self.segment_index}")
             return False
 
         # Calculate throughput
@@ -154,18 +154,18 @@ class VideoStreamProtocol(QuicConnectionProtocol):
         else:
             throughput_kbps = 0
             
-        print(f"✅ Segment {self.segment_index} finished: {self.received_bytes} bytes, {throughput_kbps:.2f} kbps, time: {self.last_chunk_time:.2f}s")
+        print(f"Segment {self.segment_index} finished: {self.received_bytes} bytes, {throughput_kbps:.2f} kbps, time: {self.last_chunk_time:.2f}s")
 
         # ABR decision
         idx = self.bitrates.index(self.current_bitrate)
         if throughput_kbps > self.current_bitrate * 1.5 and idx < len(self.bitrates) - 1:
             self.current_bitrate = self.bitrates[idx + 1]
-            print(f"⬆️ Switching UP to {self.current_bitrate}p")
+            print(f"⬆Switching UP to {self.current_bitrate}p")
         elif throughput_kbps < self.current_bitrate * 0.8 and idx > 0:
             self.current_bitrate = self.bitrates[idx - 1]
-            print(f"⬇️ Switching DOWN to {self.current_bitrate}p")
+            print(f"⬇Switching DOWN to {self.current_bitrate}p")
         else:
-            print(f"🔄 Keeping bitrate {self.current_bitrate}p")
+            print(f"Keeping bitrate {self.current_bitrate}p")
 
         self.segment_index += 1
         return True
@@ -175,10 +175,10 @@ class VideoStreamProtocol(QuicConnectionProtocol):
             self.connection_established = True
             if self.stream_qlogger:
                 self.stream_qlogger.log_connection_established()
-            print(f"🔗 Connection established after {(time.time() - self.start_time):.3f}s")
+            print(f"Connection established after {(time.time() - self.start_time):.3f}s")
 
         if isinstance(event, StreamDataReceived):
-            print(f"📥 Client received data on stream {event.stream_id}, length: {len(event.data)}, end_stream: {event.end_stream}")
+            print(f"Client received data on stream {event.stream_id}, length: {len(event.data)}, end_stream: {event.end_stream}")
             
             if event.stream_id == self.current_stream_id:
                 is_first_chunk = not self.video_data
@@ -186,7 +186,7 @@ class VideoStreamProtocol(QuicConnectionProtocol):
 
                 if is_first_chunk:
                     self.first_chunk_time = time.time() - self.start_time
-                    print(f"🎬 First chunk received for stream {event.stream_id}")
+                    print(f"First chunk received for stream {event.stream_id}")
 
                 if self.stream_qlogger:
                     self.stream_qlogger.log_data_received(
@@ -217,10 +217,10 @@ class VideoStreamProtocol(QuicConnectionProtocol):
                     chunk_filename = Path('results') / f"quic_received_{self.current_bitrate}p_seg{self.segment_index}.mp4"
                     with open(chunk_filename, "wb") as f:
                         f.write(self.video_data)
-                    print(f"💾 Segment saved: {chunk_filename} ({self.received_bytes} bytes)")
+                    print(f"Segment saved: {chunk_filename} ({self.received_bytes} bytes)")
 
                     self.transfer_complete.set()
-                    print(f"✅ Transfer complete for stream {event.stream_id}")
+                    print(f"Transfer complete for stream {event.stream_id}")
 
         elif isinstance(event, DatagramFrameReceived):
             pass  # Ignore datagram frames
@@ -244,7 +244,7 @@ class VideoStreamClient:
         self.stream_logger = StreamQLogger()
 
     async def run(self):
-        print(f"🔗 Connecting to {self.host}:{self.port}...")
+        print(f"Connecting to {self.host}:{self.port}...")
         
         # Create qlogger instance for connection logging
         self.stream_logger.log_connection_start(self.host, self.port)
@@ -256,19 +256,19 @@ class VideoStreamClient:
                 configuration=self.configuration,
                 create_protocol=lambda *args, **kwargs: VideoStreamProtocol(*args, stream_qlogger=self.stream_logger, **kwargs)
             ) as protocol:
-                print("✅ Connected, starting ABR streaming...")
+                print("Connected, starting ABR streaming...")
                 
                 segment_count = 0
                 while await protocol.request_next_segment():
                     segment_count += 1
-                    print(f"🎉 Successfully completed segment {segment_count}")
+                    print(f"Successfully completed segment {segment_count}")
                     # Small delay between segments
                     await asyncio.sleep(0.5)
                 
-                print(f"🎊 Streaming completed! Total segments: {segment_count}")
+                print(f"Streaming completed! Total segments: {segment_count}")
         
         except Exception as e:
-            print(f"💥 Connection error: {e}")
+            print(f"Connection error: {e}")
             import traceback
             traceback.print_exc()
         
@@ -280,7 +280,7 @@ class VideoStreamClient:
         with open(packet_log_file, "w") as f:
             json.dump(self.packet_logger.to_dict(), f, indent=2)
 
-        print(f"💾 Packet-Level Qlog saved to: {packet_log_file}")
+        print(f"Packet-Level Qlog saved to: {packet_log_file}")
 
 
 async def main():
@@ -289,5 +289,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    print("🎬 Starting QUIC Video Streaming Client...")
+    print("Starting QUIC Video Streaming Client...")
     asyncio.run(main())
