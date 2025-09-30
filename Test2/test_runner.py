@@ -28,8 +28,7 @@ async def runner():
     time.sleep(3)
     
     print("\n--- Running DASH Test ---")
-    # dash_success = await run_dash_test()
-    dash_success = True
+    dash_success = await run_dash_test()
     time.sleep(3)
 
     return quic_success and dash_success

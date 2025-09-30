@@ -234,7 +234,7 @@ for i in range(num_segments):
         
     seg_name = current_rep["segments"][i]
     seg_url = base_path + current_rep["base_url"] + seg_name
-    seg_filename = os.path.join(RESULTS_DIR, f"{i}_{current_rep['id']}_{seg_name}")
+    seg_filename = os.path.join(RESULTS_DIR, f"dash_{i}_{current_rep['id']}_{seg_name}")
 
     print(f"Downloading segment {i} from {current_rep['id']} -> {seg_filename}")
     
