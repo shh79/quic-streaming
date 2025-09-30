@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011"
+     type="static"
+     mediaPresentationDuration="PT32S"
+     minBufferTime="PT1.5S"
+     profiles="urn:mpeg:dash:profile:isoff-on-demand:2011">
+
+  <Period duration="PT32S">
+
+    <AdaptationSet mimeType="video/mp4" startWithSAP="1" segmentAlignment="true">
+
+      <!-- Low Quality 360p -->
+      <Representation id="low" bandwidth="500000" width="640" height="360" codecs="avc1.42c01e">
+        <BaseURL>low/</BaseURL>
+        <SegmentList duration="8">
+          <Initialization sourceURL="seg1.mp4"/>
+          <SegmentURL media="seg1.mp4"/>
+          <SegmentURL media="seg2.mp4"/>
+          <SegmentURL media="seg3.mp4"/>
+          <SegmentURL media="seg4.mp4"/>
+        </SegmentList>
+      </Representation>
+
+      <!-- Medium Quality 720p -->
+      <Representation id="medium" bandwidth="1200000" width="1280" height="720" codecs="avc1.4d401f">
+        <BaseURL>medium/</BaseURL>
+        <SegmentList duration="8">
+          <Initialization sourceURL="seg1.mp4"/>
+          <SegmentURL media="seg1.mp4"/>
+          <SegmentURL media="seg2.mp4"/>
+          <SegmentURL media="seg3.mp4"/>
+          <SegmentURL media="seg4.mp4"/>
+        </SegmentList>
+      </Representation>
+
+      <!-- High Quality 1080p -->
+      <Representation id="high" bandwidth="2500000" width="1920" height="1080" codecs="avc1.4d4020">
+        <BaseURL>high/</BaseURL>
+        <SegmentList duration="8">
+          <Initialization sourceURL="seg1.mp4"/>
+          <SegmentURL media="seg1.mp4"/>
+          <SegmentURL media="seg2.mp4"/>
+          <SegmentURL media="seg3.mp4"/>
+          <SegmentURL media="seg4.mp4"/>
+        </SegmentList>
+      </Representation>
+
+    </AdaptationSet>
+  </Period>
+</MPD>
