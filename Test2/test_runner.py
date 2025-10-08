@@ -22,7 +22,21 @@ async def run_dash_test():
     result = subprocess.run(netem_cmd, capture_output=True, text=True, timeout=30)
     return (result.returncode == 0)
 
-async def runner():
+async def runner(crossTraficType):
+    match crossTraficType:
+        case 'random':
+            print("\n--- Running Random Cross Trafic ---")
+            netem_cmd = [
+                'python3', 'random_traffic.py'
+            ]
+            subprocess.Popen(netem_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        case 'worst':
+            print("\n--- Running Worst Cross Trafic ---")
+            netem_cmd = [
+                'python3', 'worst_traffic.py'
+            ]
+            subprocess.Popen(netem_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
     print("\n--- Running QUIC Test ---")
     quic_success = await run_quic_test()
     time.sleep(3)
@@ -39,6 +53,7 @@ if __name__ == "__main__":
     parser.add_argument('-d', choices=['10', '40', '80'], default='10', help='Delay(ms): 10, 40, 80; default: 10ms')
     parser.add_argument('-j', choices=['0', '10', '30'], default='0', help='Jitter(ms): 0, 10, 30; default: 0ms')
     parser.add_argument('-l', choices=['0', '0.1', '1', '3'], default='0', help='Packet-Loss(%): 0, 0.1, 1, 3; default: 0%')
+    parser.add_argument('-t', choices=['none', 'random', 'worst'], default='none', help='Cross-Trafic: None, Random, Worst')
     
     args = parser.parse_args()
 
@@ -65,7 +80,7 @@ if __name__ == "__main__":
 
     print(f"Config the link of c1-eth0 to have Bandwidth: {args.b}Mbps, Delay: {args.d}ms, Jitter: {args.j}ms, Packet-Loss: {args.l}%")
     
-    success = asyncio.run(runner())
+    success = asyncio.run(runner(args.t))
     
     if success:
         print(f"All tests on this senario(Bandwidth: {args.b}Mbps, Delay: {args.d}ms, Jitter: {args.j}ms, Packet-Loss: {args.l}%) are completed successfully!")
