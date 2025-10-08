@@ -10,210 +10,146 @@ import json
 def findFile(folder, pattern):
     return f"./{list(Path(f'./{folder}').glob(f'{pattern}*'))[0]}"
 
-def parseQlogForRtt(qlogFilePath):
+def parseRttFromQlog(qlog_file_path):
     """
-    Parse qlog file to extract RTT measurements from ACK frames and packet timing
+    Extract RTT measurements from qlog file with enhanced logging
     """
-    with open(qlogFilePath, 'r') as f:
-        qlog_data = json.load(f)
+    try:
+        with open(qlog_file_path, 'r') as f:
+            qlog_data = json.load(f)
+    except Exception as e:
+        print(f"Error reading qlog file: {e}")
+        return pd.DataFrame()
     
-    rtt_events = []
-    
-    # qlog structure: traces -> events
-    if 'traces' in qlog_data:
-        traces = qlog_data['traces']
-    else:
-        traces = [qlog_data]  # Handle different qlog formats
-    
-    for trace in traces:
-        if 'events' not in trace:
-            continue
-            
-        for event in trace['events']:
-            if len(event) >= 3:
-                timestamp, category, event_type = event[0], event[1], event[2]
-                
-                # Look for ACK frames and packet loss events
-                if (category == "transport" and 
-                    event_type in ["packet_received", "packet_sent", "metrics_updated"]):
-                    
-                    data = event[3] if len(event) > 3 else {}
-                    
-                    # Extract RTT from metrics_updated
-                    if (event_type == "metrics_updated" and 
-                        "latest_rtt" in data.get("metrics", {})):
-                        rtt_ms = data["metrics"]["latest_rtt"]
-                        rtt_events.append({
-                            'timestamp': timestamp,
-                            'rtt_ms': rtt_ms,
-                            'event_type': 'latest_rtt'
-                        })
-                    
-                    # Extract from ACK frames in packet_received
-                    elif event_type == "packet_received" and "frames" in data:
-                        for frame in data["frames"]:
-                            if frame.get("frame_type") == "ack":
-                                ack_delay = frame.get("ack_delay", 0)
-                                # Calculate RTT from ACK timing (simplified)
-                                rtt_events.append({
-                                    'timestamp': timestamp,
-                                    'rtt_ms': ack_delay * 1000,  # Convert to ms
-                                    'event_type': 'ack_delay'
-                                })
-    
-    return pd.DataFrame(rtt_events)
-
-def calculateRttFromPackets(qlogFilePath):
-    """
-    More sophisticated RTT calculation by tracking packet send/receive times
-    """
-    with open(qlogFilePath, 'r') as f:
-        qlog_data = json.load(f)
-    
-    sent_packets = {}
     rtt_measurements = []
     
+    # Extract events from qlog structure
+    events = []
     if 'traces' in qlog_data:
-        traces = qlog_data['traces']
+        for trace in qlog_data['traces']:
+            events.extend(trace.get('events', []))
+    elif 'events' in qlog_data:
+        events = qlog_data['events']
     else:
-        traces = [qlog_data]
+        events = qlog_data  # Assume direct list
     
-    for trace in traces:
-        if 'events' not in trace:
-            continue
-            
-        for event in trace['events']:
-            if len(event) < 3:
+    # print(f"Found {len(events)} total events in qlog")
+    
+    for event in events:
+        try:
+            try:
+                data = event['data']
+                timestamp = event['time']
+                temp = event['name'].split(':')
+                category = temp[0]
+                event_type = temp[1]  
+            except:
                 continue
+            
+            # Look for metrics_updated events
+            if (category == "recovery" and event_type == "metrics_updated" and isinstance(data, dict)):
 
-            print(event)
+                # Extract all RTT metrics
+                rtt_entry = {'timestamp': timestamp}
                 
-            timestamp, category, event_type = event[0], event[1], event[2]
-            data = event[3] if len(event) > 3 else {}
-            
-            # Track sent packets
-            if (category == "transport" and event_type == "packet_sent" and 
-                "header" in data and "packet_number" in data["header"]):
+                if "latest_rtt" in data:
+                    rtt_entry['latest_rtt_ms'] = data["latest_rtt"]
                 
-                packet_num = data["header"]["packet_number"]
-                sent_packets[packet_num] = {
-                    'send_time': timestamp,
-                    'packet_type': data.get("frames", [{}])[0].get("frame_type", "unknown") if data.get("frames") else "unknown"
-                }
-            
-            # Calculate RTT when ACK is received
-            elif (category == "transport" and event_type == "packet_received" and 
-                  "frames" in data):
+                if "smoothed_rtt" in data:
+                    rtt_entry['smoothed_rtt_ms'] = data["smoothed_rtt"]
                 
-                for frame in data["frames"]:
-                    if frame.get("frame_type") == "ack" and "acked_ranges" in frame:
-                        for ack_range in frame["acked_ranges"]:
-                            if isinstance(ack_range, list) and len(ack_range) == 2:
-                                start, end = ack_range
-                                for packet_num in range(start, end + 1):
-                                    if packet_num in sent_packets:
-                                        send_time = sent_packets[packet_num]['send_time']
-                                        rtt_ms = (timestamp - send_time) * 1000  # Convert to ms
-                                        
-                                        if rtt_ms > 0:  # Valid RTT measurement
-                                            rtt_measurements.append({
-                                                'timestamp': timestamp,
-                                                'rtt_ms': rtt_ms,
-                                                'packet_number': packet_num,
-                                                'event_type': 'calculated_rtt'
-                                            })
+                if "rtt_variance" in data:
+                    rtt_entry['rtt_variance_ms'] = data["rtt_variance"]
+                
+                if "min_rtt" in data:
+                    rtt_entry['min_rtt_ms'] = data["min_rtt"]
+                
+                # If we found any RTT metrics, add to results
+                if len(rtt_entry) > 1:
+                    rtt_measurements.append(rtt_entry)
+                    
+        except Exception as e:
+            continue  # Skip malformed events
     
+    # print(f"Extracted {len(rtt_measurements)} RTT measurement events")
     return pd.DataFrame(rtt_measurements)
 
-def generateRttPlot(quicQlogPath, dash):
+def plotRttFromQlog(qlog_file_path):
     """
-    Generate RTT vs Time plot from qlog file, with optional DASH comparison
+    Plot RTT vs Time from qlog file
     """
+    # Parse RTT data
+    rtt_df = parseRttFromQlog(qlog_file_path)
+    
+    if rtt_df.empty:
+        print("No RTT data found in qlog file")
+        return None
+    
+    # Process timestamps
+    # Convert timestamp to seconds and normalize to start from 0
+    rtt_df['time_seconds'] = rtt_df['timestamp'] / 1000  # Convert ms to seconds
+    min_time = rtt_df['time_seconds'].min()
+    rtt_df['normalized_time'] = rtt_df['time_seconds'] - min_time
+    
     # Set style
     sns.set_style("whitegrid")
+    plt.figure(figsize=(14, 8))
     
-    # Parse qlog for RTT
-    print("Parsing qlog file for RTT measurements...")
-    quic_rtt_df = calculateRttFromPackets(quicQlogPath)
+    # Determine which RTT columns are available
+    rtt_columns = [col for col in rtt_df.columns if 'rtt' in col and col != 'timestamp']
     
-    if quic_rtt_df.empty:
-        print("No RTT measurements found in qlog, trying alternative method...")
-        quic_rtt_df = parseQlogForRtt(quicQlogPath)
+    if not rtt_columns:
+        print("No RTT columns found in data")
+        return None
     
-    if quic_rtt_df.empty:
-        print("Warning: No RTT data could be extracted from qlog file")
-        return
+    # Plot all available RTT metrics
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+    line_styles = ['-', '--', '-.', ':']
     
-    # Convert timestamp to datetime and normalize
-    quic_rtt_df['timestamp_dt'] = pd.to_datetime(quic_rtt_df['timestamp'], unit='ms', errors='coerce')
-    if quic_rtt_df['timestamp_dt'].isna().all():
-        # If timestamp is not in ms, try seconds
-        quic_rtt_df['timestamp_dt'] = pd.to_datetime(quic_rtt_df['timestamp'], unit='s', errors='coerce')
+    for i, rtt_col in enumerate(rtt_columns):
+        if i < len(colors):
+            plt.plot(rtt_df['normalized_time'], rtt_df[rtt_col],
+                    linewidth=2,
+                    marker='o' if len(rtt_df) < 50 else '',  # Only show markers for sparse data
+                    markersize=4,
+                    label=rtt_col.replace('_ms', '').replace('_', ' ').title(),
+                    color=colors[i],
+                    linestyle=line_styles[i % len(line_styles)],
+                    alpha=0.8)
     
-    # Remove invalid timestamps
-    quic_rtt_df = quic_rtt_df.dropna(subset=['timestamp_dt'])
-    
-    # Normalize time to start from 0
-    min_time = quic_rtt_df['timestamp_dt'].min()
-    quic_rtt_df['normalized_time'] = (quic_rtt_df['timestamp_dt'] - min_time).dt.total_seconds()
-    
-    # Create figure
-    plt.figure(figsize=(15, 8))
-    
-    # Plot QUIC RTT
-    plt.plot(quic_rtt_df['normalized_time'], quic_rtt_df['rtt_ms'], 
-             marker='o', linewidth=2, markersize=4, alpha=0.7,
-             label='QUIC RTT', color='#1f77b4')
-    
-    # Add DASH RTT if provided
-    dash_df = dash
-    dash_df['timestamp'] = pd.to_datetime(dash_df['timestamp'])
-        
-    # Standardize RTT column name
-    rtt_col = None
-    for col in ['rtt_sec', 'rtt_estimate_sec', 'rtt']:
-        if col in dash_df.columns:
-            rtt_col = col
-            break
-        
-    if rtt_col:
-        dash_df['normalized_time'] = (dash_df['timestamp'] - dash_df['timestamp'].min()).dt.total_seconds()
-        plt.plot(dash_df['normalized_time'], dash_df[rtt_col] * 1000,  # Convert to ms
-                 marker='s', linewidth=2, markersize=4, alpha=0.7,
-                 label='DASH RTT', color='#ff7f0e')
-    
-    plt.title('Round Trip Time (RTT) vs Time', fontsize=16, fontweight='bold', pad=20)
-    plt.xlabel('Time from Session Start (seconds)', fontsize=12)
+    plt.title('QUIC RTT (Round Trip Time) vs Time', fontsize=16, fontweight='bold', pad=20)
+    plt.xlabel('Time from Connection Start (seconds)', fontsize=12)
     plt.ylabel('RTT (milliseconds)', fontsize=12)
-    plt.legend(fontsize=12)
+    plt.legend(fontsize=10)
     plt.grid(True, alpha=0.3)
     
     # Add statistics
-    if not quic_rtt_df.empty:
-        avg_rtt = quic_rtt_df['rtt_ms'].mean()
-        max_rtt = quic_rtt_df['rtt_ms'].max()
-        min_rtt = quic_rtt_df['rtt_ms'].min()
-        std_rtt = quic_rtt_df['rtt_ms'].std()
+    if not rtt_df.empty:
+        # Use the first available RTT column for statistics
+        primary_rtt_col = rtt_columns[0]
+        rtt_data = rtt_df[primary_rtt_col].dropna()
         
-        stats_text = f"""QUIC RTT Statistics:
-                        Average: {avg_rtt:.1f} ms
-                        Min: {min_rtt:.1f} ms
-                        Max: {max_rtt:.1f} ms
-                        Std: {std_rtt:.1f} ms"""
-        
-        plt.annotate(stats_text, xy=(0.02, 0.95), xycoords='axes fraction',
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.7),
-                    fontsize=10, fontfamily='monospace')
+        if not rtt_data.empty:
+            stats_text = f"""RTT Statistics ({primary_rtt_col.replace('_ms', '').replace('_', ' ').title()}):
+Average: {rtt_data.mean():.1f} ms
+Min: {rtt_data.min():.1f} ms
+Max: {rtt_data.max():.1f} ms
+Std Dev: {rtt_data.std():.1f} ms
+Samples: {len(rtt_data)}"""
+            
+            plt.annotate(stats_text, xy=(0.02, 0.95), xycoords='axes fraction',
+                        bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.8),
+                        fontsize=9, fontfamily='monospace')
     
     plt.tight_layout()
-    
-    save_path = "./plots/rtt_time.png"
+
+    save_path = './plots/qlog_rtt_time.png'
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
-    print(f"RTT plot saved to: {save_path}")
+    print(f"RTT(Qlog) plot saved to: {save_path}")
     
-    plt.show()
+    # plt.show()
     
-    return quic_rtt_df
+    return rtt_df
 
 def generateBitratePlot(quic, dash):
     # Set style
@@ -282,10 +218,10 @@ def generateBitratePlot(quic, dash):
                 fontsize=9)
 
     # Print time range information
-    print(f"QUIC session duration: {df1['normalized_time'].max():.2f} seconds")
-    print(f"DASH session duration: {df2['normalized_time'].max():.2f} seconds")
-    print(f"QUIC data points: {len(df1)}")
-    print(f"DASH data points: {len(df2)}")
+    # print(f"QUIC session duration: {df1['normalized_time'].max():.2f} seconds")
+    # print(f"DASH session duration: {df2['normalized_time'].max():.2f} seconds")
+    # print(f"QUIC data points: {len(df1)}")
+    # print(f"DASH data points: {len(df2)}")
 
     plt.tight_layout()
 
@@ -584,8 +520,8 @@ if __name__ == "__main__":
     quic = pd.read_csv(findFile("results", "quic_metrics"))
     dash = pd.read_csv(findFile("results", "dash_metrics"))
     
-    # generateBitratePlot(quic, dash)
-    # generateBufferLevelPlot(quic, dash)
-    # generateThroughputPlot(quic, dash)
-    # generateStallTimelinePlot(quic, dash)
-    generateRttPlot(findFile("qlog", "packet_trace"), dash)
+    generateBitratePlot(quic, dash)
+    generateBufferLevelPlot(quic, dash)
+    generateThroughputPlot(quic, dash)
+    generateStallTimelinePlot(quic, dash)
+    plotRttFromQlog(findFile("qlog", "packet_trace"))

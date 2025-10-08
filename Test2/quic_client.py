@@ -312,6 +312,47 @@ class StreamQLogger:
             json.dump(qlog_data, f, indent=2)
         print(f"Stream QLog saved to: {filename}")
 
+class DetailedQuicLogger(QuicLogger):
+    """Enhanced QUIC logger that captures RTT metrics"""
+    
+    def __init__(self):
+        super().__init__()
+        self.connection = None
+        
+    def set_connection(self, connection):
+        """Set the QUIC connection to extract metrics from"""
+        self.connection = connection
+        
+    def log_metrics_event(self):
+        """Log RTT and other metrics from the connection"""
+        if self.connection is None:
+            return
+            
+        try:
+            # Extract metrics from the connection
+            metrics = {}
+            
+            # Get RTT metrics if available
+            if hasattr(self.connection, '_loss_detection'):
+                loss_detector = self.connection._loss_detection
+                if hasattr(loss_detector, 'latest_rtt'):
+                    metrics["latest_rtt"] = getattr(loss_detector, 'latest_rtt', 0)
+                if hasattr(loss_detector, 'smoothed_rtt'):
+                    metrics["smoothed_rtt"] = getattr(loss_detector, 'smoothed_rtt', 0)
+                if hasattr(loss_detector, 'rtt_variance'):
+                    metrics["rtt_variance"] = getattr(loss_detector, 'rtt_variance', 0)
+                if hasattr(loss_detector, 'min_rtt'):
+                    metrics["min_rtt"] = getattr(loss_detector, 'min_rtt', 0)
+            
+            # Log the metrics event
+            if metrics:
+                self._log_event(
+                    category="transport",
+                    event="metrics_updated",
+                    data={"metrics": metrics}
+                )
+        except Exception as e:
+            print(f"Error logging metrics: {e}")
 
 class VideoStreamProtocol(QuicConnectionProtocol):
     """QUIC Protocol with adaptive bitrate streaming and metrics"""
@@ -512,11 +553,12 @@ class VideoStreamProtocol(QuicConnectionProtocol):
         elif isinstance(event, DatagramFrameReceived):
             pass  # Ignore datagram frames
 
-
 class VideoStreamClient:
     def __init__(self, host, port):
         self.host = host
         self.port = port
+        
+        # ENHANCED CONFIGURATION WITH METRICS
         self.configuration = QuicConfiguration(
             is_client=True,
             alpn_protocols=["video-stream"],
@@ -524,17 +566,20 @@ class VideoStreamClient:
             verify_mode=False,
             max_data=10485760,  # 10MB
             max_stream_data=1048576,  # 1MB per stream
+            # Enable congestion control with metrics
+            congestion_control_algorithm="reno",  # or "cubic"
         )
 
-        self.packet_logger = QuicLogger()
+        # USE ENHANCED LOGGER
+        self.packet_logger = DetailedQuicLogger()
         self.configuration.quic_logger = self.packet_logger
         self.stream_logger = StreamQLogger()
         self.metrics_calc = MetricsCalculator()
 
     async def run(self):
         print(f"Connecting to {self.host}:{self.port}...")
+        print("RTT metrics logging ENABLED - collecting detailed connection metrics")
         
-        # Create qlogger instance for connection logging
         self.stream_logger.log_connection_start(self.host, self.port)
         
         try:
@@ -549,14 +594,13 @@ class VideoStreamClient:
                     **kwargs
                 )
             ) as protocol:
-                print("Connected, starting ABR streaming...")
+                print("Connected, starting ABR streaming with RTT monitoring...")
                 
                 segment_count = 0
                 while await protocol.request_next_segment():
                     segment_count += 1
                     print(f"Successfully completed segment {segment_count}")
-                    # Small delay between segments
-                    await asyncio.sleep(0.5)  # Keep original delay
+                    await asyncio.sleep(0.5)
                 
                 print(f"Streaming completed! Total segments: {segment_count}")
         
@@ -566,18 +610,44 @@ class VideoStreamClient:
             traceback.print_exc()
         
         # Save all logs and metrics
-        self.stream_logger.save_qlog('abr_video')
+        self.stream_logger.save_qlog('abr_video_with_rtt')
         self.metrics_calc.generate_summary_report()
 
         Path("qlog").mkdir(exist_ok=True)
-        packet_log_file = Path("qlog") / f"packet_trace_{datetime.now().strftime('%Y%m%d_%H%M%S')}.qlog"
+        packet_log_file = Path("qlog") / f"packet_trace_with_rtt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.qlog"
         
         with open(packet_log_file, "w") as f:
             json.dump(self.packet_logger.to_dict(), f, indent=2)
 
-        print(f"Packet-Level Qlog saved to: {packet_log_file}")
+        print(f"Enhanced Qlog with RTT saved to: {packet_log_file}")
         print(f"QUIC metrics saved to: {self.metrics_calc.metrics_file}")
+        
+        # Verify RTT data was captured
+        self._verify_rtt_metrics(packet_log_file)
 
+    def _verify_rtt_metrics(self, qlog_file):
+        """Verify that RTT metrics were captured"""
+        try:
+            with open(qlog_file, 'r') as f:
+                qlog_data = json.load(f)
+            
+            rtt_events = 0
+            for event in qlog_data.get('traces', [{}])[0].get('events', []):
+                if (len(event) >= 4 and 
+                    event[1] == "transport" and 
+                    event[2] == "metrics_updated"):
+                    rtt_events += 1
+                    metrics = event[3].get("metrics", {})
+                    if "latest_rtt" in metrics:
+                        print(f"✅ RTT metrics found: latest_rtt = {metrics['latest_rtt']}ms")
+            
+            if rtt_events > 0:
+                print(f"Successfully captured {rtt_events} RTT measurement events")
+            else:
+                print("No RTT metrics found in qlog")
+                
+        except Exception as e:
+            print(f"Error verifying RTT metrics: {e}")
 
 async def main():
     client = VideoStreamClient("10.0.0.1", 4433)
