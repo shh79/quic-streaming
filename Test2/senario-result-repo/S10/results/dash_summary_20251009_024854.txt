@@ -1,0 +1,8 @@
+=== DASH Streaming Metrics Summary ===
+Total segments downloaded: 5
+Total rebuffering events: 1
+Total rebuffering duration: 0.00 seconds
+Average throughput: 6.89 Mbps
+Average RTT: 0.720 seconds
+Maximum buffer level: 6.95 seconds
+Bitrate switches: 0

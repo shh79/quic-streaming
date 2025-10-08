@@ -1,0 +1,13 @@
+=== QUIC Streaming Metrics Summary ===
+Total segments downloaded: 864
+Total rebuffering events: 4
+Total rebuffering duration: 0.72 seconds
+Average throughput: 0.13 Mbps
+Max throughput: 11.30 Mbps
+Min throughput: 0.01 Mbps
+Average RTT: 136.0 ms
+Max RTT: 298.6 ms
+Maximum buffer level: 2.00 seconds
+Average buffer level: 0.14 seconds
+Bitrate switches: 2
+Goodput efficiency: 72.9%
